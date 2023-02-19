@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 mod builders;
+mod ui;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenTree};
@@ -9,6 +10,7 @@ use quote::{quote, ToTokens};
 use syn::{parse::Parse, parse_macro_input, DeriveInput, Expr, ExprLit, Ident, Lit, LitStr};
 
 use builders::*;
+use ui::*;
 
 #[proc_macro]
 pub fn load_css(input: TokenStream) -> TokenStream {
@@ -27,36 +29,6 @@ pub fn load_css(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
-}
-
-#[derive(Debug)]
-struct Field {
-    name: String,
-    r#type: String,
-}
-
-struct Object {
-    name: String,
-}
-
-impl ToTokens for Field {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let name = syn::parse_str::<Ident>(&self.name).unwrap();
-        let r#type = syn::parse_str::<Ident>(&self.r#type).unwrap();
-        tokens.extend(quote! {
-            #name: #r#type
-        });
-    }
-}
-
-impl ToTokens for Object {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let ident = syn::parse_str::<Ident>(&self.name).unwrap();
-        let name = &self.name;
-        tokens.extend(quote! {
-            #ident: builder.object(#name).unwrap()
-        });
-    }
 }
 
 #[proc_macro]
@@ -86,15 +58,16 @@ pub fn parse_ui(input: TokenStream) -> TokenStream {
                             let id = id.unwrap();
                             let class = std::str::from_utf8(&class.value).unwrap();
                             let id = std::str::from_utf8(&id.value).unwrap();
-                            let class = class[3..].to_owned(); // Remove initial Gtk
+                            
+                            let class = class[3..].to_owned(); // Remove initial Gtk prefix
                             let id = id.to_owned();
 
-                            objects.push(Field {
+                            objects.push(StructDefField {
                                 name: (&id).to_owned(),
                                 r#type: class,
                             });
 
-                            variables.push(Object {
+                            variables.push(StructInitField {
                                 name: (&id).to_owned()
                             })
                         }
