@@ -1,11 +1,12 @@
 # GTK4 Rust Bindings macros
 
-These proc macros are not inended for use
+These proc macros are not intended for use
 
 ## Import the macros
 ```rust
 use gtk_custom_macros::*;
 ```
+Note that `Box` is called `GTKBox`.
 
 ## Builder pattern Macro
 Instead of this
