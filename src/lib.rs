@@ -35,8 +35,14 @@ pub fn load_css(input: TokenStream) -> TokenStream {
 pub fn parse_ui(input: TokenStream) -> TokenStream {
     let file = parse_macro_input!(input as LitStr).value();
 
+    // Get path
+    let caller = std::module_path!().split("::").next().unwrap().to_string();
+    let mut path = std::path::PathBuf::from(format!("src/{}.rs", caller));
+    path.pop();
+    path.push(&file.trim_matches('"'));
+    
     // XML Reader
-    let xml = std::fs::read_to_string(&file).expect("File does not exist");
+    let xml = std::fs::read_to_string(&path).expect("File does not exist");
     let mut reader = Reader::from_str(&xml);
     reader.trim_text(true);
 
