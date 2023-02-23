@@ -5,9 +5,10 @@ mod ui;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenTree};
-use quick_xml::reader::Reader;
 use quote::{quote, ToTokens};
 use syn::{parse::Parse, parse_macro_input, DeriveInput, Expr, ExprLit, Ident, Lit, LitStr};
+
+use serde_xml_rs::from_reader;
 
 use builders::*;
 use ui::*;
@@ -31,6 +32,7 @@ pub fn load_css(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+
 #[proc_macro]
 pub fn parse_ui(input: TokenStream) -> TokenStream {
     let file = parse_macro_input!(input as LitStr).value();
@@ -43,46 +45,38 @@ pub fn parse_ui(input: TokenStream) -> TokenStream {
     
     // XML Reader
     let xml = std::fs::read_to_string(&path).expect("File does not exist");
-    let mut reader = Reader::from_str(&xml);
-    reader.trim_text(true);
+    let parser = xml::reader::EventReader::new(xml.as_bytes());
 
     // (id, type)
     let mut objects = vec![];
     let mut variables = vec![];
 
-    // Read all the tags with the "class" and "id" property
-    loop {
-        match reader.read_event() {
-            Ok(event) => match event {
-                quick_xml::events::Event::Start(ref e) => {
-                    if let Some(class) =
-                        e.attributes().find(|a| a.as_ref().unwrap().key.0 == b"class")
-                    {
-                        if let Some(id) = e.attributes().find(|a| a.as_ref().unwrap().key.0 == b"id")
-                        {
-                            let class = class.unwrap();
-                            let id = id.unwrap();
-                            let class = std::str::from_utf8(&class.value).unwrap();
-                            let id = std::str::from_utf8(&id.value).unwrap();
-                            
-                            let class = class[3..].to_owned(); // Remove initial Gtk prefix
-                            let id = id.to_owned();
-
-                            objects.push(StructDefField {
-                                name: (&id).to_owned(),
-                                r#type: class,
-                            });
-
-                            variables.push(StructInitField {
-                                name: (&id).to_owned()
-                            })
-                        }
+    for e in parser {
+        match e {
+            Ok(xml::reader::XmlEvent::StartElement {
+                name: _, attributes, ..
+            }) => {
+                let class = attributes.iter().find(|attr| attr.name.local_name == "class");
+                let id = attributes.iter().find(|attr| attr.name.local_name == "id");
+                
+                if let Some(class) = class {
+                    if let Some(id) = id {
+                        let class = &class.value;
+                        let id = &id.value;
+                        
+                        objects.push(StructDefField {
+                            name: id.to_owned(),
+                            r#type: class[3..].to_owned(), // Remove initial Gtk prefix
+                        });
+        
+                        variables.push(StructInitField {
+                            name: id.to_owned()
+                        })
                     }
                 }
-                quick_xml::events::Event::Eof => break,
-                _ => (),
-            },
-            Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+
+            }
+            _ => {}
         }
     }
 
